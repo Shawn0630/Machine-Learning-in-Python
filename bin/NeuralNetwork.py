@@ -1,4 +1,6 @@
 import numpy as np
+from bin.Regularization import Regularization
+import matplotlib.pyplot as plt
 
 
 def tanh(x):
@@ -18,7 +20,7 @@ def logistic_derivative(x):
 
 
 class NeuralNetwork:
-    def __init__(self, layers, activation='logistic'):
+    def __init__(self, layers, activation='logistic', la=0):
         if activation == 'logistic':
             self.activation = logistic
             self.activation_deriv = logistic_derivative
@@ -26,13 +28,23 @@ class NeuralNetwork:
             self.activation = tanh
             self.activation_deriv = tanh_derivative
 
-            self.weights = []
-            for i in range(1, len(layers) - 1):
-                # Return random floats in the half-open interval [-0.25, 0.25]
-                self.weights.append((2 * np.random.random((layers[i - 1] + 1, layers[i] + 1)) - 1) * 0.25)
-                self.weights.append((2 * np.random.random((layers[i] + 1, layers[i + 1])) - 1) * 0.25)
+        self.weights = []
+        self.regularization = Regularization(la)
+        for i in range(1, len(layers) - 1):
+            # Return random floats in the half-open interval [-0.25, 0.25]
+            self.weights.append((2 * np.random.random((layers[i - 1] + 1, layers[i] + 1)) - 1) * 0.25)
+        self.weights.append((2 * np.random.random((layers[i] + 1, layers[i + 1])) - 1) * 0.25)
 
-    def fit(self, x_train_mat, y_train_mat, learning_rate=0.2, epochs=10000):
+    def fit(self, x_train_mat, y_train_mat, learning_rate=0.02, epochs=20000):
+        """ gradient for linear regression
+           Parameters
+           ----------
+           x_train_mat: matrix
+           y_train_mat: array
+           learning_rate: matrix in n * 1
+               n features
+           epochs:
+        """
         x_train_mat = NeuralNetwork.append_ones_at_last(x_train_mat)
         self._gradient_descent(x_train_mat, y_train_mat, learning_rate, epochs)
 
@@ -58,26 +70,40 @@ class NeuralNetwork:
         return a
 
     @staticmethod
-    def deltas(weights, a, y_train_mat, activation_deriv):
+    def deltas(weights, a, m, y_train_mat, activation_deriv, regularization):
         error = y_train_mat - a[-1]
         deltas = [error * activation_deriv(a[-1])]
         for l in range(len(a) - 2, 0, -1):
-            deltas.append(np.multiply(deltas[-1].dot(weights[l].T),activation_deriv(a[l])))
+            gradient = np.multiply(deltas[-1].dot(weights[l].T), activation_deriv(a[l]))
+            regular_term = regularization.regularization_term_gradient(m, weights[l])
+            deltas.append(gradient + regular_term.T)
 
         deltas.reverse()
 
         return deltas
 
-    def _gradient_descent(self, x_train_mat, y_train_mat, learning_rate=0.2, epochs=10000):
+    def _gradient_descent(self, x_train_mat, y_train_mat, learning_rate=0.2, epochs=20000):
+        m = x_train_mat.shape[0]
+        loss_list = []
+        epochs_list = []
         for k in range(epochs):  # 循环epochs次
             i = np.random.randint(x_train_mat.shape[0])
             a = NeuralNetwork.feed_forward(self.weights, x_train_mat[i], self.activation)
-            deltas = NeuralNetwork.deltas(self.weights, a, y_train_mat[i], self.activation_deriv)
+            cost = NeuralNetwork.cost_function(self.weights, x_train_mat, y_train_mat, self.activation)
+            loss_list.append(cost)
+            epochs_list.append(k)
+            deltas = NeuralNetwork.deltas(self.weights, a, m, y_train_mat[i],
+                                          self.activation_deriv, self.regularization)
 
             for i in range(len(self.weights)):
                 layer = np.atleast_2d(a[i])
                 delta = np.atleast_2d(deltas[i])
                 self.weights[i] += learning_rate * layer.T.dot(delta)
+
+        plt.plot(epochs_list, loss_list)
+        plt.xlabel('epochs')
+        plt.ylabel('loss')
+        plt.show()
 
     @staticmethod
     def append_ones_at_last(x_train_mat):
