@@ -3,6 +3,8 @@ from bin.Regularization import Regularization
 import matplotlib.pyplot as plt
 
 
+# https://juejin.cn/post/6844903623109902349
+# https://zhuanlan.zhihu.com/p/45190898
 def tanh(x):
     return np.tanh(x)
 
